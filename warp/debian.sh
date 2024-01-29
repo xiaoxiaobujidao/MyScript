@@ -1,4 +1,5 @@
 # Install lsb
+which sudo || apt update;apt install -y sudo
 sudo apt update && sudo apt install lsb-release gpg curl wget -y
 
 # Add cloudflare gpg key
