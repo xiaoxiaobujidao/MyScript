@@ -23,5 +23,5 @@ elif [ "$1" == "6" ]; then
     rm /etc/gai.conf
 fi
 
-warp-cli set-mode warp
+warp-cli mode warp
 warp-cli connect
