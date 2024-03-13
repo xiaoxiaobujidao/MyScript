@@ -23,5 +23,7 @@ elif [ "$1" == "6" ]; then
     rm /etc/gai.conf
 fi
 
+systemctl start warp-svc.service
+
 warp-cli mode warp
 warp-cli connect
