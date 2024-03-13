@@ -11,6 +11,7 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyr
 # Install
 sudo apt update && sudo apt install cloudflare-warp -y
 
+systemctl start warp-svc.service
 warp-cli registration delete;yes y | warp-cli registration new
 
 if [ "$1" == "4" ]; then
@@ -23,7 +24,6 @@ elif [ "$1" == "6" ]; then
     rm /etc/gai.conf
 fi
 
-systemctl start warp-svc.service
 
 warp-cli mode warp
 warp-cli connect
