@@ -12,7 +12,8 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyr
 sudo apt update && sudo apt install cloudflare-warp -y
 
 systemctl start warp-svc.service
-warp-cli registration delete;yes y | warp-cli registration new
+yes y | warp-cli registration delete
+warp-cli registration new
 
 if [ "$1" == "4" ]; then
 	# ipv4-only VPS
@@ -26,4 +27,4 @@ fi
 
 
 warp-cli mode warp
-yes y|warp-cli connect
+warp-cli connect
