@@ -12,19 +12,18 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyr
 sudo apt update && sudo apt install cloudflare-warp -y
 
 systemctl start warp-svc.service
-alias warp-cli='warp-cli --accept-tos'
-warp-cli registration delete;warp-cli registration new
+warp-cli registration delete;yes y | warp-cli registration new
 
 if [ "$1" == "4" ]; then
-    # ipv4-only VPS
-    warp-cli add-excluded-route 0.0.0.0/0
-    echo "precedence ::ffff:0:0/96 100" >>/etc/gai.conf
+	# ipv4-only VPS
+	warp-cli add-excluded-route 0.0.0.0/0
+	echo "precedence ::ffff:0:0/96 100" >>/etc/gai.conf
 elif [ "$1" == "6" ]; then
-    # ipv6-only VPS
-    warp-cli add-excluded-route ::0/0
-    rm /etc/gai.conf
+	# ipv6-only VPS
+	warp-cli add-excluded-route ::0/0
+	rm /etc/gai.conf
 fi
 
 
-warp-cli --accept-tos mode warp
-warp-cli --accept-tos connect
+warp-cli mode warp
+yes y|warp-cli connect
