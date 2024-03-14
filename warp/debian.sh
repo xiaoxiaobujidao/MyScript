@@ -11,7 +11,7 @@ echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyr
 # Install
 sudo apt update && sudo apt install cloudflare-warp -y
 
-systemctl start warp-svc.service
+while :;do systemctl start warp-svc.service && break;sleep 0.1;done
 yes y | warp-cli registration delete
 warp-cli registration new
 
