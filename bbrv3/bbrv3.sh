@@ -129,7 +129,7 @@ install_xanmod_kernel() {
         exit 1
     fi
     
-    # 检查包是否存在
+    # 检查包是否存在，如果 v4 不可用则回退到 v3
     local package_name="linux-xanmod-x64v$version"
     log_info "正在检查包 $package_name 是否可用..."
     if ! apt-cache show "$package_name" > /dev/null 2>&1; then
@@ -137,6 +137,11 @@ install_xanmod_kernel() {
             log_warn "包 $package_name 不可用，回退到 v3"
             version="3"
             package_name="linux-xanmod-x64v$version"
+            log_info "正在检查包 $package_name 是否可用..."
+            if ! apt-cache show "$package_name" > /dev/null 2>&1; then
+                log_error "包 $package_name 也不可用"
+                exit 1
+            fi
         else
             log_error "包 $package_name 不可用"
             exit 1
