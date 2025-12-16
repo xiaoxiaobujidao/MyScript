@@ -57,14 +57,24 @@ install_dependencies() {
     echo -e "${GREEN}正在更新软件包列表...${NC}"
     apt-get update -qq
     
+    # 检测系统类型
+    if [ ! -f /etc/os-release ]; then
+        echo -e "${RED}错误: 无法检测系统类型${NC}"
+        exit 1
+    fi
+    . /etc/os-release
+    
     echo -e "${GREEN}正在安装必要的依赖...${NC}"
-    apt-get install -y -qq \
-        curl \
-        wget \
-        gnupg2 \
-        software-properties-common \
-        apt-transport-https \
-        ca-certificates
+    
+    # 基础依赖包
+    PACKAGES="curl wget gnupg2 apt-transport-https ca-certificates"
+    
+    # software-properties-common 仅在 Ubuntu 上可用
+    if [[ "$ID" == "ubuntu" ]]; then
+        PACKAGES="$PACKAGES software-properties-common"
+    fi
+    
+    apt-get install -y -qq $PACKAGES
 }
 
 # 添加 XanMod 内核仓库
