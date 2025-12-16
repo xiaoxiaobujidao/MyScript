@@ -131,8 +131,18 @@ install_xanmod_kernel() {
     
     log_info "正在安装 linux-xanmod-x64v$version..."
     if ! apt install -y "linux-xanmod-x64v$version"; then
-        log_error "XanMod 内核安装失败"
-        exit 1
+        if [[ "$version" == "4" ]]; then
+            log_warn "linux-xanmod-x64v4 不可用，回退到 v3"
+            version="3"
+            log_info "正在安装 linux-xanmod-x64v$version..."
+            if ! apt install -y "linux-xanmod-x64v$version"; then
+                log_error "XanMod 内核安装失败"
+                exit 1
+            fi
+        else
+            log_error "XanMod 内核安装失败"
+            exit 1
+        fi
     fi
     
     log_info "XanMod 内核安装成功"
