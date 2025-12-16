@@ -1,239 +1,171 @@
 #!/bin/bash
-# BBRv3 安装脚本 - 通过 XanMod 内核启用 BBRv3
-# 警告：此脚本会安装新内核并重启系统
 
-set -euo pipefail
+# 安装 XanMod 内核并开启 BBR3 的脚本
+# 适用于 Debian/Ubuntu 系统
 
-# 颜色输出
+set -e
+
+# 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# 日志函数
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# 检查 root 权限
+# 检查是否为 root 用户
 check_root() {
-    if [[ $EUID -ne 0 ]]; then
-        log_error "此脚本需要 root 权限运行"
+    if [ "$EUID" -ne 0 ]; then 
+        echo -e "${RED}错误: 请使用 root 权限运行此脚本${NC}"
+        echo "使用: sudo $0"
         exit 1
     fi
 }
 
 # 检查系统类型
 check_system() {
-    if [[ ! -f /etc/debian_version ]]; then
-        log_error "此脚本仅支持 Debian/Ubuntu 系统"
+    if [ ! -f /etc/os-release ]; then
+        echo -e "${RED}错误: 无法检测系统类型${NC}"
         exit 1
     fi
     
-    if [[ $(uname -m) != "x86_64" ]]; then
-        log_error "此脚本仅支持 x86_64 架构"
+    . /etc/os-release
+    
+    if [[ "$ID" != "debian" && "$ID" != "ubuntu" ]]; then
+        echo -e "${RED}错误: 此脚本仅支持 Debian/Ubuntu 系统${NC}"
         exit 1
     fi
+    
+    echo -e "${GREEN}检测到系统: $PRETTY_NAME${NC}"
 }
 
-# 检查是否已安装 XanMod 内核
-check_xanmod_installed() {
-    if dpkg -l | grep -q "linux-xanmod"; then
-        log_warn "检测到已安装 XanMod 内核"
-        read -p "是否继续？(y/N): " -n 1 -r
+# 检查架构
+check_arch() {
+    ARCH=$(dpkg --print-architecture)
+    echo -e "${GREEN}系统架构: $ARCH${NC}"
+    
+    if [[ "$ARCH" != "amd64" ]]; then
+        echo -e "${YELLOW}警告: XanMod 主要支持 amd64 架构${NC}"
+        read -p "是否继续? (y/n) " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_info "已取消安装"
-            exit 0
+            exit 1
         fi
     fi
 }
 
-# 获取 CPU 微架构版本
-get_cpu_version() {
-    log_info "正在检测 CPU 微架构版本..."
-    
-    # 下载并执行检测脚本
-    local check_script=$(mktemp)
-    if ! curl -sSL https://dl.xanmod.org/check_x86-64_psabi.sh -o "$check_script"; then
-        log_error "无法下载 CPU 检测脚本"
-        rm -f "$check_script"
-        exit 1
-    fi
-    
-    chmod +x "$check_script"
-    local version=$("$check_script" 2>/dev/null | tail -n 1)
-    rm -f "$check_script"
-    
-    if [[ -z "$version" ]]; then
-        log_warn "无法自动检测 CPU 版本，使用 v3（通用版本）"
-        version="3"
-    else
-        # 提取版本号（最后一个字符）
-        version="${version: -1}"
-        log_info "检测到 CPU 版本: v$version"
-    fi
-    
-    echo "$version"
-}
-
-# 安装依赖
+# 安装必要的依赖
 install_dependencies() {
-    log_info "正在更新软件包列表..."
-    if ! apt update; then
-        log_error "软件包列表更新失败"
-        exit 1
-    fi
+    echo -e "${GREEN}正在更新软件包列表...${NC}"
+    apt-get update -qq
     
-    log_info "正在安装依赖包..."
-    if ! apt install -y gnupg curl mawk; then
-        log_error "依赖包安装失败"
-        exit 1
-    fi
+    echo -e "${GREEN}正在安装必要的依赖...${NC}"
+    apt-get install -y -qq \
+        curl \
+        wget \
+        gnupg2 \
+        software-properties-common \
+        apt-transport-https \
+        ca-certificates
 }
 
-# 添加 XanMod 仓库
+# 添加 XanMod 内核仓库
 add_xanmod_repo() {
-    log_info "正在添加 XanMod 仓库..."
+    echo -e "${GREEN}正在添加 XanMod 内核仓库...${NC}"
     
-    # 下载并导入 GPG 密钥
-    if ! curl -fsSL https://dl.xanmod.org/archive.key | gpg --dearmor -o /usr/share/keyrings/xanmod-archive-keyring.gpg; then
-        log_error "GPG 密钥导入失败"
-        exit 1
-    fi
+    # 添加 GPG 密钥
+    wget -qO - https://dl.xanmod.org/archive.key | gpg --dearmor -o /usr/share/keyrings/xanmod-archive-keyring.gpg
     
-    # 添加仓库源
-    if [[ ! -f /etc/apt/sources.list.d/xanmod-release.list ]]; then
-        echo 'deb [signed-by=/usr/share/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org releases main' | \
-            tee /etc/apt/sources.list.d/xanmod-release.list > /dev/null
-        log_info "XanMod 仓库已添加"
-    else
-        log_warn "XanMod 仓库已存在，跳过添加"
-    fi
+    # 添加仓库
+    echo 'deb [signed-by=/usr/share/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org releases main' | tee /etc/apt/sources.list.d/xanmod-release.list
+    
+    # 更新软件包列表
+    apt-get update -qq
+    
+    echo -e "${GREEN}XanMod 仓库添加成功${NC}"
 }
 
 # 安装 XanMod 内核
 install_xanmod_kernel() {
-    local version=$1
-    log_info "正在更新软件包列表..."
-    if ! apt update; then
-        log_error "软件包列表更新失败"
-        exit 1
-    fi
+    echo -e "${GREEN}正在安装 XanMod 内核...${NC}"
     
-    # 检查包是否存在，如果 v4 不可用则回退到 v3
-    local package_name="linux-xanmod-x64v$version"
-    log_info "正在检查包 $package_name 是否可用..."
+    # 列出可用的 XanMod 内核版本
+    echo -e "${YELLOW}可用的 XanMod 内核版本:${NC}"
+    apt-cache search linux-xanmod | grep "^linux-xanmod" | head -5
     
-    # 使用 apt search 检查包是否存在
-    if ! apt search "^$package_name$" 2>/dev/null | grep -q "^$package_name/"; then
-        if [[ "$version" == "4" ]]; then
-            log_warn "包 $package_name 不可用，回退到 v3"
-            version="3"
-            package_name="linux-xanmod-x64v$version"
-            log_info "正在检查包 $package_name 是否可用..."
-            if ! apt search "^$package_name$" 2>/dev/null | grep -q "^$package_name/"; then
-                log_error "包 $package_name 也不可用"
-                exit 1
-            fi
-        else
-            log_error "包 $package_name 不可用"
-            exit 1
-        fi
-    fi
+    # 安装最新的稳定版本
+    apt-get install -y linux-xanmod-x64v3 || {
+        echo -e "${YELLOW}尝试安装通用版本...${NC}"
+        apt-get install -y linux-xanmod
+    }
     
-    log_info "正在安装 $package_name..."
-    if ! apt install -y "$package_name"; then
-        log_error "XanMod 内核安装失败"
-        exit 1
-    fi
-    
-    log_info "XanMod 内核安装成功"
+    echo -e "${GREEN}XanMod 内核安装成功${NC}"
 }
 
-# 配置 BBRv3
-configure_bbrv3() {
-    log_info "正在配置 BBRv3..."
+# 配置 BBR3
+configure_bbr3() {
+    echo -e "${GREEN}正在配置 BBR3...${NC}"
     
-    # 创建 BBRv3 配置文件
-    local bbr_config="/etc/sysctl.d/99-bbrv3.conf"
-    
-    # 检查是否已存在配置
-    if [[ -f "$bbr_config" ]]; then
-        log_warn "BBRv3 配置文件已存在，将覆盖"
-        read -p "是否继续？(y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_info "已取消配置"
-            return
-        fi
+    # 检查内核是否支持 BBR3
+    if ! grep -q "tcp_bbr3" /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
+        echo -e "${YELLOW}警告: 当前内核可能不支持 BBR3，将在重启后生效${NC}"
     fi
     
-    # 写入 BBRv3 配置
-    cat > "$bbr_config" <<'EOF'
-# BBRv3 配置
-# 使用 fq_pie 队列调度器（BBRv3 推荐）
-net.core.default_qdisc=fq_pie
-net.ipv4.tcp_congestion_control=bbr
+    # 配置 sysctl
+    cat >> /etc/sysctl.conf << EOF
 
-# TCP 缓冲区优化
-net.core.rmem_max = 67108864
-net.core.wmem_max = 67108864
-net.ipv4.tcp_rmem = 4096 87380 33554432
-net.ipv4.tcp_wmem = 4096 65536 33554432
-
-# MTU 探测
-net.ipv4.tcp_mtu_probing=1
+# BBR3 配置
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr3
+net.ipv4.tcp_slow_start_after_idle=0
 EOF
     
-    log_info "BBRv3 配置已写入 $bbr_config"
+    # 立即应用配置（如果内核支持）
+    sysctl -w net.core.default_qdisc=fq 2>/dev/null || true
+    sysctl -w net.ipv4.tcp_congestion_control=bbr3 2>/dev/null || true
+    sysctl -w net.ipv4.tcp_slow_start_after_idle=0 2>/dev/null || true
     
-    # 应用配置（无需重启即可生效部分设置）
-    log_info "正在应用 BBRv3 配置..."
-    sysctl -p "$bbr_config" > /dev/null 2>&1 || true
+    echo -e "${GREEN}BBR3 配置完成${NC}"
+}
+
+# 验证配置
+verify_config() {
+    echo -e "${GREEN}正在验证配置...${NC}"
+    
+    echo -e "${YELLOW}当前内核版本:${NC}"
+    uname -r
+    
+    echo -e "${YELLOW}可用的拥塞控制算法:${NC}"
+    cat /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null || echo "需要重启后查看"
+    
+    echo -e "${YELLOW}当前使用的拥塞控制算法:${NC}"
+    cat /proc/sys/net/ipv4/tcp_congestion_control 2>/dev/null || echo "需要重启后查看"
+    
+    echo -e "${YELLOW}当前队列规则:${NC}"
+    cat /proc/sys/net/core/default_qdisc 2>/dev/null || echo "需要重启后查看"
 }
 
 # 主函数
 main() {
-    log_info "开始安装 BBRv3（通过 XanMod 内核）"
-    log_warn "此脚本将安装新内核并需要重启系统"
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}  XanMod 内核 + BBR3 安装脚本${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo
     
     check_root
     check_system
-    check_xanmod_installed
-    
+    check_arch
     install_dependencies
     add_xanmod_repo
+    install_xanmod_kernel
+    configure_bbr3
+    verify_config
     
-    local cpu_version=$(get_cpu_version)
-    install_xanmod_kernel "$cpu_version"
-    
-    configure_bbrv3
-    
-    log_info "安装完成！"
-    log_warn "系统需要重启以使用新内核和 BBRv3"
     echo
-    read -p "是否立即重启？(y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        log_info "系统将在 5 秒后重启..."
-        sleep 5
-        reboot
-    else
-        log_info "请稍后手动重启系统以应用更改"
-        log_info "重启后，可以使用以下命令验证 BBRv3："
-        log_info "  sysctl net.ipv4.tcp_congestion_control"
-        log_info "  sysctl net.core.default_qdisc"
-    fi
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}安装完成！${NC}"
+    echo -e "${YELLOW}请重启系统以使新内核和 BBR3 生效:${NC}"
+    echo -e "${YELLOW}  sudo reboot${NC}"
+    echo -e "${GREEN}========================================${NC}"
 }
 
-# 执行主函数
-main "$@"
+# 运行主函数
+main
