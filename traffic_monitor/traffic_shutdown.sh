@@ -236,6 +236,13 @@ check_traffic() {
     fi
     
     local total_diff=$((rx_diff + tx_diff))
+    local remaining_bytes=0
+    if [ -n "$THRESHOLD_BYTES" ] && [ "$THRESHOLD_BYTES" -gt 0 ] 2>/dev/null; then
+        remaining_bytes=$((THRESHOLD_BYTES - total_diff))
+        if (( remaining_bytes < 0 )); then
+            remaining_bytes=0
+        fi
+    fi
     
     # 安全地计算 GB 值，处理空值或无效值
     local total_diff_gb="0"
@@ -253,6 +260,7 @@ check_traffic() {
     local rx_formatted=$(format_bytes $rx_diff)
     local tx_formatted=$(format_bytes $tx_diff)
     local total_formatted=$(format_bytes $total_diff)
+    local remaining_formatted=$(format_bytes $remaining_bytes)
     
     # 安全地计算百分比，避免除以零
     local percentage="0"
@@ -260,10 +268,10 @@ check_traffic() {
         percentage=$(echo "scale=2; $total_diff_gb * 100 / $THRESHOLD_GB" | bc 2>/dev/null || echo "0")
     fi
     
-    echo -e "${BLUE}[$(date '+%H:%M:%S')] 入站: $rx_formatted | 出站: $tx_formatted | 总计: $total_formatted (${percentage}%)${NC}"
+    echo -e "${BLUE}[$(date '+%H:%M:%S')] 入站: $rx_formatted | 出站: $tx_formatted | 总计: $total_formatted (${percentage}%) | 余量: $remaining_formatted${NC}"
     
     # 记录到日志
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 入站增量: $rx_formatted, 出站增量: $tx_formatted, 总计: $total_formatted (${percentage}%)" >> "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 入站增量: $rx_formatted, 出站增量: $tx_formatted, 总计: $total_formatted (${percentage}%), 余量: $remaining_formatted" >> "$LOG_FILE"
     
     # 检查是否达到阈值
     if [ "$threshold_reached" = "1" ]; then
