@@ -110,32 +110,6 @@ install_xanmod_kernel() {
     echo -e "${GREEN}XanMod 内核安装成功${NC}"
 }
 
-# 配置 BBR3
-configure_bbr3() {
-    echo -e "${GREEN}正在配置 BBR3...${NC}"
-    
-    # 检查内核是否支持 BBR3
-    if ! grep -q "tcp_bbr3" /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null; then
-        echo -e "${YELLOW}警告: 当前内核可能不支持 BBR3，将在重启后生效${NC}"
-    fi
-    
-    # 配置 sysctl
-    cat >> /etc/sysctl.conf << EOF
-
-# BBR3 配置
-net.core.default_qdisc=fq
-net.ipv4.tcp_congestion_control=bbr3
-net.ipv4.tcp_slow_start_after_idle=0
-EOF
-    
-    # 立即应用配置（如果内核支持）
-    sysctl -w net.core.default_qdisc=fq 2>/dev/null || true
-    sysctl -w net.ipv4.tcp_congestion_control=bbr3 2>/dev/null || true
-    sysctl -w net.ipv4.tcp_slow_start_after_idle=0 2>/dev/null || true
-    
-    echo -e "${GREEN}BBR3 配置完成${NC}"
-}
-
 # 验证配置
 verify_config() {
     echo -e "${GREEN}正在验证配置...${NC}"
@@ -166,7 +140,6 @@ main() {
     install_dependencies
     add_xanmod_repo
     install_xanmod_kernel
-    configure_bbr3
     verify_config
     
     echo
