@@ -82,7 +82,8 @@ add_xanmod_repo() {
     echo -e "${GREEN}正在添加 XanMod 内核仓库...${NC}"
     
     # 添加 GPG 密钥
-    wget -qO - https://dl.xanmod.org/archive.key | gpg --dearmor -o /usr/share/keyrings/xanmod-archive-keyring.gpg
+    # wget -qO - https://dl.xanmod.org/archive.key | gpg --dearmor -o /usr/share/keyrings/xanmod-archive-keyring.gpg
+    wget -qO - https://gitlab.com/afrd.gpg   | gpg --dearmor -o /usr/share/keyrings/xanmod-archive-keyring.gpg
     
     # 添加仓库
     echo 'deb [signed-by=/usr/share/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org releases main' | tee /etc/apt/sources.list.d/xanmod-release.list
