@@ -8,7 +8,7 @@
 ## 一键安装
 
 ```bash
-curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/bbrv3/bbrv3.sh | bash -
+curl -s "https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/bbrv3/bbrv3.sh?date=$(date +%s)" | bash -
 ```
 
 建议使用 tmux 等工具运行，防止网络异常导致 SSH 断开。
