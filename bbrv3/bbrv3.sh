@@ -70,11 +70,33 @@ install_dependencies() {
     apt-get install -y -qq $PACKAGES
 }
 
+download_xanmod_gpg_key() {
+    local tmp_key="/tmp/xanmod-archive.key"
+    local keyring="/etc/apt/keyrings/xanmod-archive-keyring.gpg"
+    local url
+
+    for url in \
+        "https://dl.xanmod.org/archive.key" \
+        "https://gitlab.com/afrd.gpg"; do
+        if curl -fsSL -o "$tmp_key" "$url" && grep -q "BEGIN PGP PUBLIC KEY BLOCK" "$tmp_key"; then
+            gpg --dearmor -o "$keyring" "$tmp_key"
+            rm -f "$tmp_key"
+            echo -e "${GREEN}GPG 密钥下载成功${NC}"
+            return 0
+        fi
+        rm -f "$tmp_key"
+        echo -e "${YELLOW}无法从 ${url} 下载 GPG 密钥，尝试备用源...${NC}"
+    done
+
+    echo -e "${RED}错误: 无法下载 XanMod GPG 密钥${NC}"
+    exit 1
+}
+
 add_xanmod_repo() {
     echo -e "${GREEN}正在添加 XanMod 内核仓库...${NC}"
 
     mkdir -p /etc/apt/keyrings
-    wget -qO - https://dl.xanmod.org/archive.key | gpg --dearmor -o /etc/apt/keyrings/xanmod-archive-keyring.gpg
+    download_xanmod_gpg_key
 
     echo "deb [signed-by=/etc/apt/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org $(lsb_release -sc) main" \
         | tee /etc/apt/sources.list.d/xanmod-release.list
@@ -84,26 +106,51 @@ add_xanmod_repo() {
     echo -e "${GREEN}XanMod 仓库添加成功${NC}"
 }
 
+detect_psabi_level() {
+    local flags level=0
+
+    flags=$(grep -m1 '^flags[[:space:]]*:' /proc/cpuinfo | cut -d: -f2-)
+
+    match_flags() {
+        local flag
+        for flag in "$@"; do
+            echo "$flags" | grep -q "$flag" || return 1
+        done
+        return 0
+    }
+
+    if match_flags lm cmov cx8 fpu fxsr mmx syscall sse2; then
+        level=1
+        if match_flags cx16 lahf popcnt sse4_1 sse4_2 ssse3; then
+            level=2
+            if match_flags avx avx2 bmi1 bmi2 f16c fma abm movbe xsave; then
+                level=3
+            fi
+        fi
+    fi
+
+    if [ "$level" -eq 0 ]; then
+        echo -e "${YELLOW}无法识别 CPU 级别，默认 x86-64-v3${NC}" >&2
+        level=3
+    fi
+
+    echo "$level"
+}
+
 detect_kernel_package() {
-    local psabi_script="/tmp/check_x86-64_psabi.sh"
-    local psabi_output
+    local level
 
     echo -e "${GREEN}正在检测 CPU 架构级别...${NC}" >&2
 
-    curl -fsSL -o "$psabi_script" https://dl.xanmod.org/check_x86-64_psabi.sh
-    chmod +x "$psabi_script"
-    psabi_output=$("$psabi_script" 2>&1 || true)
-    echo "$psabi_output" >&2
+    level=$(detect_psabi_level)
+    echo -e "CPU supports x86-64-v${level}" >&2
 
-    if echo "$psabi_output" | grep -qE "x86-64-v[34]"; then
+    if [ "$level" -ge 3 ]; then
         echo "linux-xanmod-x64v3"
-    elif echo "$psabi_output" | grep -q "x86-64-v2"; then
+    elif [ "$level" -eq 2 ]; then
         echo "linux-xanmod-x64v2"
-    elif echo "$psabi_output" | grep -qE "x86-64-v1|x86-64[^-]"; then
-        echo "linux-xanmod-lts-x64v1"
     else
-        echo -e "${YELLOW}无法识别 CPU 级别，默认使用 linux-xanmod-x64v3${NC}" >&2
-        echo "linux-xanmod-x64v3"
+        echo "linux-xanmod-lts-x64v1"
     fi
 }
 
