@@ -185,7 +185,7 @@ detect_psabi_level() {
 }
 
 detect_kernel_package() {
-    local level
+    local level candidates=() pkg
 
     echo -e "${GREEN}正在检测 CPU 架构级别...${NC}" >&2
 
@@ -193,12 +193,22 @@ detect_kernel_package() {
     echo -e "CPU supports x86-64-v${level}" >&2
 
     if [ "$level" -ge 3 ]; then
-        echo "linux-xanmod-x64v3"
+        candidates=(linux-xanmod-x64v3 linux-xanmod-edge-x64v3 linux-xanmod-lts-x64v3)
     elif [ "$level" -eq 2 ]; then
-        echo "linux-xanmod-x64v2"
+        candidates=(linux-xanmod-x64v2 linux-xanmod-edge-x64v2 linux-xanmod-lts-x64v2)
     else
-        echo "linux-xanmod-lts-x64v1"
+        candidates=(linux-xanmod-lts-x64v1)
     fi
+
+    for pkg in "${candidates[@]}"; do
+        if apt-cache show "$pkg" &>/dev/null; then
+            echo "$pkg"
+            return 0
+        fi
+    done
+
+    echo -e "${RED}错误: 仓库中未找到匹配的 XanMod 内核包${NC}" >&2
+    exit 1
 }
 
 install_xanmod_kernel() {
