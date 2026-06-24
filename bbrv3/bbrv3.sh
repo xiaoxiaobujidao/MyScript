@@ -88,12 +88,12 @@ detect_kernel_package() {
     local psabi_script="/tmp/check_x86-64_psabi.sh"
     local psabi_output
 
-    echo -e "${GREEN}正在检测 CPU 架构级别...${NC}"
+    echo -e "${GREEN}正在检测 CPU 架构级别...${NC}" >&2
 
     curl -fsSL -o "$psabi_script" https://dl.xanmod.org/check_x86-64_psabi.sh
     chmod +x "$psabi_script"
     psabi_output=$("$psabi_script" 2>&1 || true)
-    echo "$psabi_output"
+    echo "$psabi_output" >&2
 
     if echo "$psabi_output" | grep -qE "x86-64-v[34]"; then
         echo "linux-xanmod-x64v3"
