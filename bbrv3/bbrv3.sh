@@ -259,6 +259,25 @@ verify_config() {
     cat /proc/sys/net/core/default_qdisc 2>/dev/null || echo "需要重启后查看"
 }
 
+prompt_reboot() {
+    local reply
+
+    echo
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}安装完成！${NC}"
+    echo -e "${YELLOW}需要重启才能使新内核和 BBRv3 生效。${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    read -r -n 1 -p "是否立即重启? (y/n) " reply < /dev/tty
+    echo
+
+    if [[ "$reply" =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}正在重启系统...${NC}"
+        reboot
+    else
+        echo -e "${YELLOW}已取消重启，请稍后手动执行: reboot${NC}"
+    fi
+}
+
 main() {
     echo -e "${GREEN}========================================${NC}"
     echo -e "${GREEN}  XanMod 内核 + BBRv3 安装脚本${NC}"
@@ -274,13 +293,7 @@ main() {
     install_xanmod_kernel
     configure_bbr
     verify_config
-
-    echo
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}安装完成！${NC}"
-    echo -e "${YELLOW}请重启系统以使新内核和 BBRv3 生效:${NC}"
-    echo -e "${YELLOW}  sudo reboot${NC}"
-    echo -e "${GREEN}========================================${NC}"
+    prompt_reboot
 }
 
 main
