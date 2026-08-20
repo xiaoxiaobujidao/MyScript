@@ -51,6 +51,7 @@ fi
 # 状态文件路径
 STATUS_FILE="/tmp/traffic_monitor_$$.status"
 LOG_FILE="/tmp/traffic_monitor_$$.log"
+SCRIPT_START_TS=$(date +%s)
 
 # 清理函数
 cleanup() {
@@ -155,6 +156,27 @@ format_bytes() {
         echo "${result:-0} KB"
     else
         echo "$bytes B"
+    fi
+}
+
+# 格式化运行时长（不足一天显示小时，达到一天显示天和小时）
+format_runtime() {
+    local start_ts=$1
+    local current_ts=$(date +%s)
+    local elapsed_seconds=$((current_ts - start_ts))
+
+    if (( elapsed_seconds < 0 )); then
+        elapsed_seconds=0
+    fi
+
+    local elapsed_hours=$((elapsed_seconds / 3600))
+
+    if (( elapsed_hours >= 24 )); then
+        local days=$((elapsed_hours / 24))
+        local hours=$((elapsed_hours % 24))
+        echo "${days}天${hours}小时"
+    else
+        echo "${elapsed_hours}小时"
     fi
 }
 
@@ -268,7 +290,8 @@ check_traffic() {
         percentage=$(echo "scale=2; $total_diff_gb * 100 / $THRESHOLD_GB" | bc 2>/dev/null || echo "0")
     fi
     
-    echo -e "${BLUE}[$(date '+%H:%M:%S')] 入站: $rx_formatted | 出站: $tx_formatted | 总计: $total_formatted (${percentage}%) | 余量: $remaining_formatted${NC}"
+    local runtime_formatted=$(format_runtime "$SCRIPT_START_TS")
+    echo -e "${BLUE}[已运行: ${runtime_formatted}] 入站: $rx_formatted | 出站: $tx_formatted | 总计: $total_formatted (${percentage}%) | 余量: $remaining_formatted${NC}"
     
     # 记录到日志
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] 入站增量: $rx_formatted, 出站增量: $tx_formatted, 总计: $total_formatted (${percentage}%), 余量: $remaining_formatted" >> "$LOG_FILE"
