@@ -1,22 +1,28 @@
-# 网络流量监控自动关机脚本
+# 网络流量监控脚本
 
-## 功能说明
+提供两个脚本，监控逻辑相同（入站 + 出站累计流量），达到阈值后的行为不同：
 
-此脚本会监控系统的网络流量（入站 + 出站），当总流量达到指定阈值时自动关机。
+| 脚本 | 达到阈值后的行为 |
+| --- | --- |
+| `traffic_shutdown.sh` | 等待 10 秒后关机 |
+| `traffic_wait.sh` | 以退出码 `0`（true）退出，不关机，方便其他程序继续处理 |
 
 ## 使用方法
 
 ### 在线调用（推荐）
 
 ```bash
-# 基本用法
+# 达到阈值后关机
 curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/traffic_monitor/traffic_shutdown.sh | bash -s -- <流量阈值(GB)>
 
 # 示例：当出入站总流量达到 100GB 时关机
 curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/traffic_monitor/traffic_shutdown.sh | bash -s -- 100
 
-# 示例：当出入站总流量达到 500GB 时关机
-curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/traffic_monitor/traffic_shutdown.sh | bash -s -- 500
+# 达到阈值后成功退出（不关机）
+curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/traffic_monitor/traffic_wait.sh | bash -s -- <流量阈值(GB)>
+
+# 示例：流量用尽后再执行后续命令
+curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/traffic_monitor/traffic_wait.sh | bash -s -- 100 && echo "流量已用尽"
 ```
 
 > **提示**：使用在线脚本时，建议使用 tmux 或类似工具，以防止网络异常导致的连接中断。
@@ -24,14 +30,31 @@ curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/traffic_
 ### 本地调用
 
 ```bash
-# 基本用法
+# 达到阈值后关机
 ./traffic_shutdown.sh <流量阈值(GB)>
-
-# 示例：当出入站总流量达到 100GB 时关机
 ./traffic_shutdown.sh 100
 
-# 示例：当出入站总流量达到 500GB 时关机
-./traffic_shutdown.sh 500
+# 达到阈值后成功退出，再交给后续程序处理
+./traffic_wait.sh <流量阈值(GB)>
+./traffic_wait.sh 100 && ./your_followup.sh
+```
+
+### 与其他程序配合（`traffic_wait.sh`）
+
+退出码约定：
+
+- `0`：流量已达到阈值，可继续后续处理
+- `1`：参数错误，或被 `Ctrl+C` / `SIGTERM` 中断（不会误触发后续逻辑）
+
+```bash
+# 方式一：&& 串联
+./traffic_wait.sh 100 && systemctl stop my-service
+
+# 方式二：if 判断
+if ./traffic_wait.sh 100; then
+    echo "流量已用尽，开始收尾"
+    # 后续处理...
+fi
 ```
 
 ## 功能特点
@@ -42,7 +65,7 @@ curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/traffic_
 4. **虚拟网口过滤**：自动排除 Docker、veth、br-、virbr、vmnet、tun、tap 等虚拟网口
 5. **友好显示**：实时显示当前流量使用情况和百分比，启动时显示被监控的网口列表
 6. **日志记录**：自动记录监控日志到临时文件
-7. **安全关机**：达到阈值后等待 10 秒再关机，可按 Ctrl+C 取消
+7. **两种收尾方式**：`traffic_shutdown.sh` 达到阈值后等待 10 秒再关机（可按 Ctrl+C 取消）；`traffic_wait.sh` 达到阈值后立即以成功状态退出，不关机
 
 ## 显示信息
 
@@ -55,10 +78,10 @@ curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/traffic_
 
 ## 注意事项
 
-1. **权限要求**：关机操作需要 root 权限，如果以普通用户运行，脚本会尝试使用 sudo
+1. **权限要求**：`traffic_shutdown.sh` 的关机操作需要 root 权限，如果以普通用户运行，脚本会尝试使用 sudo；`traffic_wait.sh` 不关机，无需 root
 2. **依赖工具**：需要 `bc` 计算器工具，脚本会自动检测并安装
 3. **状态文件**：脚本会在 `/tmp/` 目录创建临时状态文件和日志文件
-4. **停止监控**：按 `Ctrl+C` 可以随时停止监控
+4. **停止监控**：按 `Ctrl+C` 可以随时停止监控。`traffic_wait.sh` 被中断时以失败状态退出，避免后续程序误判为已达阈值
 5. **流量统计**：统计的是所有物理网络接口的总流量，自动排除：
    - 回环接口 (lo)
    - Docker 网口 (docker0, docker-xxx)
