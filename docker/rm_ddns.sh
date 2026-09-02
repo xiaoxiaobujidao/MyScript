@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 强制删除所有名称以 ddns_ 开头的 Docker 容器
+# 强制删除所有名称以 ddns_ 或 status_client_ 开头的 Docker 容器
 # 用法: ./rm_ddns.sh
 # 在线: curl -s https://raw.githubusercontent.com/xiaoxiaobujidao/MyScript/main/docker/rm_ddns.sh | bash
 
@@ -17,10 +17,10 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 # docker --filter name= 是模糊匹配，这里用精确前缀匹配
-containers=$(docker ps -a --format '{{.Names}}' | grep '^ddns_' || true)
+containers=$(docker ps -a --format '{{.Names}}' | grep -E '^(ddns_|status_client_)' || true)
 
 if [ -z "$containers" ]; then
-    echo -e "${YELLOW}没有找到名称以 ddns_ 开头的容器${NC}"
+    echo -e "${YELLOW}没有找到名称以 ddns_ 或 status_client_ 开头的容器${NC}"
     exit 0
 fi
 
@@ -32,4 +32,4 @@ echo ""
 echo "$containers" | xargs docker rm -f
 
 echo ""
-echo -e "${GREEN}已删除全部 ddns_ 开头的容器${NC}"
+echo -e "${GREEN}已删除全部 ddns_ 和 status_client_ 开头的容器${NC}"
